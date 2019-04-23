@@ -24,11 +24,13 @@
 #define ID_RTGN318  0x0cc3 // warning: id is from 0x0cc3 and 0xfcc3
 #define ID_RTGN129  0x0cc3 // same as RTGN318 but different packet size
 #define ID_THGR810  0xf824
+#define ID_THGR810a 0xf8b4 // TH Sensors in original WTGR800
 #define ID_THN802   0xc844
 #define ID_PCR800   0x2914
 #define ID_PCR800a  0x2d14 // Different PCR800 ID - AU version I think
 #define ID_THGR81   0xf824
 #define ID_WGR800   0x1984
+#define ID_WGR800a  0x1994 //anemometer of original WTGR800
 #define ID_WGR968   0x3d00
 #define ID_UV800    0xd874
 #define ID_THN129   0xcc43 // THN129 Temp only
@@ -498,6 +500,23 @@ static int oregon_scientific_v3_decode(r_device *decoder, bitbuffer_t *bitbuffer
         decoder_output_data(decoder, data);
         return 1;                                    //msg[k] = ((msg[k] & 0x0F) << 4) + ((msg[k] & 0xF0) >> 4);
     }
+    else if (sensor_id == ID_THGR810a) {
+        if (validate_os_checksum(decoder, msg, 15) != 0)
+            return 0;
+        float temp_c = get_os_temperature(msg);
+        int humidity = get_os_humidity(msg);
+        data = data_make(
+                "brand",                    "",                     DATA_STRING, "OS",
+                "model",                    "",                     DATA_STRING, _X("Oregon-THGR810a","THGR810a"),
+                "id",                         "House Code", DATA_INT,        get_os_rollingcode(msg),
+                "channel",                "Channel",        DATA_INT,        get_os_channel(msg, sensor_id),
+                "battery",                "Battery",        DATA_STRING, get_os_battery(msg)?"LOW":"OK",
+                "temperature_C",    "Celsius",        DATA_FORMAT, "%.02f C", DATA_DOUBLE, temp_c,
+                "humidity",             "Humidity",     DATA_FORMAT, "%u %%", DATA_INT, humidity,
+                NULL);
+        decoder_output_data(decoder, data);
+        return 1;                                    //msg[k] = ((msg[k] & 0x0F) << 4) + ((msg[k] & 0xF0) >> 4);
+    }
     else if (sensor_id == ID_THN802) {
         if (validate_os_checksum(decoder, msg, 12) != 0)
             return 0;
@@ -571,6 +590,25 @@ static int oregon_scientific_v3_decode(r_device *decoder, bitbuffer_t *bitbuffer
         data = data_make(
                 "brand",            "",                     DATA_STRING,    "OS",
                 "model",            "",                     DATA_STRING,    _X("Oregon-WGR800","WGR800"),
+                "id",                 "House Code", DATA_INT,         get_os_rollingcode(msg),
+                "channel",        "Channel",        DATA_INT,         get_os_channel(msg, sensor_id),
+                "battery",        "Battery",        DATA_STRING,    get_os_battery(msg)?"LOW":"OK",
+                _X("wind_max_m_s","gust"),             "Gust",             DATA_FORMAT,    "%2.1f m/s",DATA_DOUBLE, gustWindspeed,
+                _X("wind_avg_m_s","average"),        "Average",        DATA_FORMAT,    "%2.1f m/s",DATA_DOUBLE, avgWindspeed,
+                _X("wind_dir_deg","direction"),    "Direction",    DATA_FORMAT,    "%3.1f degrees",DATA_DOUBLE, quadrant,
+                NULL);
+        decoder_output_data(decoder, data);
+        return 1;
+    }
+    else if (sensor_id == ID_WGR800a) {
+        if (validate_os_checksum(decoder, msg, 17) != 0)
+            return 0;
+        float gustWindspeed = (msg[5]&0x0f) /10.0F + ((msg[6]>>4)&0x0f) *1.0F + (msg[6]&0x0f) * 10.0F;
+        float avgWindspeed = ((msg[7]>>4)&0x0f) / 10.0F + (msg[7]&0x0f) *1.0F + ((msg[8]>>4)&0x0f) * 10.0F;
+        float quadrant = (0x0f&(msg[4]>>4))*22.5F;
+        data = data_make(
+                "brand",            "",                     DATA_STRING,    "OS",
+                "model",            "",                     DATA_STRING,    _X("Oregon-WGR800a","WGR800a"),
                 "id",                 "House Code", DATA_INT,         get_os_rollingcode(msg),
                 "channel",        "Channel",        DATA_INT,         get_os_channel(msg, sensor_id),
                 "battery",        "Battery",        DATA_STRING,    get_os_battery(msg)?"LOW":"OK",
